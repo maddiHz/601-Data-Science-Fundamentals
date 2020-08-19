@@ -1,0 +1,127 @@
+---
+title: "Homework 3: Data Visualization"
+author: "Maddi Hertz"
+date: "8/13/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("/Users/MaddisMac/Dropbox/Data_Science_Fundamentals_601_SU2020")
+library(tidyverse)
+library(magrittr)
+```
+
+### Data Source: ANES
+
+For the remainder of this course I plan to work with ANES data. The full ANES survey is  conducted in person and online before and after the election in Presidential years. It is an essential data source for researchers working on American public opinion and political behavior. I'm excited to familiarize myself with this indispensable resource and learn R in the process. For this assignment I am only working with 2016 data, but I plan to download the cumulative data file to analyze trends over the past 5-7 cycles (Clinton onward).  
+
+At first, working with these data was difficult. I grew incredibly frustrated attempting to recode variables that did not spring errors, but also did not change into the values I was assigning. It took me a while, but eventually I realized that vectors I assumed were numeric `<double>` were in fact `character` strings coded as "[space][integer]". To fix this problem I added the `trim_ws = TRUE` option when loading the data into R.
+
+``` {r, message = FALSE}
+anes <- read_delim("anes_2016.txt", delim=",", trim_ws = TRUE)
+anes <- as_tibble(anes)
+```
+
+Thankfully, taking a look at the tibble confirms that most of the variables are `<dbl>` not `<chr>`.
+```{r, echo=FALSE}
+anes
+```
+
+### Recode Variables
+
+With my data loaded, I needed to recode the variables I plan to work with. I used `%>%` and `mutate` to condense my code and assign a bunch of variables at once. I used `recode_factor` for a number of these. In some cases, this made sense as the categories were ordinal, but I also decided to use it for Presidential vote choice to make sure that the data for the two major parties would be displayed next to each other in tables and visualizations rather than separated by Johnson and Stein as would have been the case if R defaulted to alphabetical. I'm curious to know whether there is a way I can manipulate the order of the bars on within `geom_bar()` to achieve the same thing without `recode_factor`. 
+
+```{r, include=FALSE}
+anes <- anes%>%
+  mutate(interest = recode_factor(v161003, `1` = "Always", `2` = "Most of the time",
+                                  `3` = "About half the time", `4` = "Some of the time",
+                                  `5` = "Never"),
+         PartyID_7 = recode_factor(v161158x, `1` = "Strong Democrat", 
+                                   `2` = "Weak Democrat", `3` = "Lean Democrat",
+                                   `4` = "Independent", `5` = "Lean Republican",
+                                   `6` = "Weak Republican", `7` = "Strong Republican"),
+         PartyID_Lean = recode(v161158x, `1` = "Democrat", `2` = "Democrat",
+                               `3` = "Democrat", `4` = "Independent", `5` = "Republican",
+                               `6` = "Republican", `7` = "Republican"),
+         PartyID_Unlean = recode(v161158x, `1` = "Democrat", `2` = "Democrat",
+                                 `3` = "Independent", `4` = "Independent",
+                                 `5` = "Independent", `6` = "Republican",
+                                 `7` = "Republican"),
+         trustWash = recode_factor(v161215, `1` = "Always", `2` = "Most of the time",
+                                   `3` = "About half the time", `4` = "Some of the time",
+                                   `5` = "Never"),
+         fewBigVsAll = recode(v161216, `1` = "A few big interests",
+                              `2` = "For benefit of all"),
+         corrupt = recode_factor(v161218, `1` = "All", `2` = "Most", `3` = "About half",
+                                 `4` = "A few", `5` = "None"),
+         careWho = recode_factor(v161145, `1` = "A great deal", `2` = "A lot",
+                                 `3` = "A moderate amount", `4`= "A little",
+                                 `5` = "Not at all"),
+         race = recode(v161310x, `1` = "White", '2' = "Black", `3` = "Asian",
+                       `4` = "Other", `5` = "Hispanic", `6` = "Other"),
+         vote2016 = recode_factor(v162034a, `1` = "Clinton", `2` = "Trump",
+                                  `3` = "Johnson", `4` = "Stein"),
+         vote2016_2p = recode(v162034a, `1` = "Clinton", `2` = "Trump"))
+```
+
+Most of my recodes followed the same pattern, but I was particularly happy with the `%in%` technique I found to use with my `case_when` recode of education; however this doesn't preserve the order so that education would be displayed as no college -> some college -> college -> grad or prof. I'm still hoping to figure out a work around for that.
+```{r}
+anes <- anes%>%
+  mutate(educ = case_when(
+           v161270 %in% 1:9 ~ "No college",
+           v161270 %in% 10:12 ~ "Some college", 
+           v161270 %in% 13 ~ "College",
+           v161270 %in% 14:16 ~ "Grad or prof"))
+```
+
+### Preliminary Research Motivation
+
+I wouldn't say that I've landed on a specific research question yet, but I am broadly interested in looking at data that deal with political interest, political knowledge, political efficacy, (dis)trust in government, and the interactions these have with education, income, social class, party ID, and vote choice. I also want to see what these attitudes can potentially tell us about nonvoters. My motivation is to try to better understand low information voters and the politically disengaged in general. It's certainly true of the political media, punditry, and Twittersphere---if not also true of survey research academia itself---that the fact that most American don't know anything about politics and moreover don't care to learn is under-appreciated and under-explored. 
+
+I think it's worthwhile to try to figure out what distinguishes and motivates these voters (and non-voters). I expect that I may find that this group tended towards Trump in 2016. And while there has been an abundance of scholarship (including from UMass professors and former UMass survey research professors) about the robustness of negative racial attitudes as a predictor of Trump support, I'm interested in whether voters with low political interest, efficacy, and trust in government are distinguishable or distinct from racial resentment voters in any way. 
+
+### Data Visualization
+
+To be honest I spent far more time on the previous sections than on refining my  visualizations themselves. I still have a ways to go before I would consider them visually pleasing or meaningful. But part of what I took from this assignment is that the decisions you make when cleaning and recoding data have a huge impact on the visualizations you are able to produce. 
+
+I'm using survey data so a bar chart was the most obvious visualization to choose. As I mentioned earlier, next I hope to work with the cumulative file to visualize how trust in government has changed over the years (by party ID and by education). I anticipate that visualization will be a challenge for me to create.
+
+For this assignment I created a bar chart with fill. It wasn't particularly hard because I was able to reference the tutorial, but I ran out of time on this assignment so it didn't make sense to be more ambitious. 
+
+```{r, echo=FALSE}
+anes %>%
+  filter(! is.na(trustWash)) %>%
+  filter(! is.na(vote2016)) %>%
+  ggplot (aes(vote2016, fill = trustWash)) +
+  geom_bar() +
+  theme_bw() +
+  labs(title = "ANES: Trust Washington to do the Right Thing by 2016 Vote Choice",
+       y = "Number of Respondents", x = "Presidential Vote")
+```
+
+As expected the fill on the bars show that Clinton voters were much more likely to trust Washington to do the right thing. In fact nearly all of the respondents who trust Washington all or most of the time voted for Clinton. This is consistent with the campaign in which she was widely understood to be the Washington insider candidate. On the other hand this filled bar chart clearly shows that Trump voters were more likely to never trust Washington or trust Washington only some of the time. 
+
+
+
+Diving a little deeper, I tried `facet_wrap` to segment the 2016 two-party vote by education.
+
+
+
+```{r, echo = FALSE}
+anes %>%
+  filter(! is.na(trustWash)) %>%
+  filter(! is.na(educ)) %>%
+  filter(! is.na(vote2016_2p)) %>%
+  ggplot (aes(vote2016, fill = trustWash)) +
+  geom_bar() +
+  theme_bw() +
+  labs(title = "ANES: Trust in Washington, 2016 Two-Party Vote by Education", y = "Number of Respondents", x = "Presidential Vote")+
+  facet_wrap(vars(educ))
+```
+
+
+This visualization is not as useful as I'd like it to be---although it does show that, consistent across all levels of education, Clinton voters were more likely to trust Washington than Trump voters. Obviously, as I previously mentioned, education is not displayed in the order I'd like it to be. But this visualization primarily just raises red flags for me. The no college chart is concerning. In a representative sample Trump should have a more significant lead over Clinton among non-college educated voters. The ANES does include weights that I did not apply for my analysis. Applying the weights could change these visualizations significantly, especially at lower levels of education where participation in surveys is less consistent. 
+
+On a similar note, according to the codebook over 600 respondents did not complete the post-election survey. It may be hard to study political interest and efficacy with this level of drop-off. I would expect these 600 people to be systematically less educated, lower-information, and less likely to have voted than respondents who filled out the post-election survey. If I were studying this topic with the intent to publish, this bias is something I would have to address.  
+

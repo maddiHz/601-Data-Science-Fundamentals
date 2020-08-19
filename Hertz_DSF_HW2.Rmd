@@ -1,0 +1,47 @@
+---
+title: "Homework 2: R Markdown Basics"
+author: "Maddi Hertz"
+date: "8/10/2020"
+output: html_document
+---
+
+
+### Getting Started
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+In order to properly load and save files it's important to set the correct working directory with `setwd()` at the beginning of each R session. This year I'm using Dropbox to store and backup my files.
+```{r}
+setwd("/Users/MaddisMac/Dropbox/Data_Science_Fundamentals_601_SU2020")
+```
+
+In order to use packages that have already been installed, they need to be loaded into the current R session. The `tidyverse` is a set of packages that are commonly used for data analysis in R. 
+```{r, message=FALSE}
+library(tidyverse)
+```
+
+
+### Import Data
+
+With setup out of the way, I need to import my data. R will be able to find the data I'm using for this assignment because it's already saved to my working directory. 
+```{r}
+Congressional_Hearings <- read.csv("legislative_hearings.csv")
+```
+
+`is(Congressional_Hearings)` tells me that `Congressional_Hearings` is a `data.frame`. The tidyverse data frame format is known as a tibble. It's worth converting the `Congressional_Hearings` data frame to a tibble. 
+```{r}
+Congressional_Hearings <- as_tibble(Congressional_Hearings)
+```
+
+
+### Explore Data
+
+I can preview my data with `as_tibble()`. This will show me the dimensions of my tibble, the name of each variable, and the type of data contained in each variable. `as_tibble` only displays the first ten rows of data, so it's a great way to get a preliminary idea of what these data look like without getting overwhelmed.  
+
+``` {r, echo = FALSE}
+Congressional_Hearings
+```
+
+The dimension of the tibble are printed at the top. `Congressional_Hearings` contains 100,254 observations of 36 variables (so glad I only printed ten rows). Alternatively, I could have used `dim(Congressional_Hearings)` to return just the dimensions without printing any data. But I'm glad I did because right off the bat, I can see some potential problems: I'm surprised that `CISYear` is a character vector rather than an integer or double vector---why wouldn't year be an integer? As I explore these data further, this is something I may have to come back to. I'll have to check the codebook to figure out why this might be the case. 
