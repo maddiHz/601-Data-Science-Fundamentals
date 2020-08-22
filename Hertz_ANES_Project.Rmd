@@ -1,0 +1,291 @@
+---
+title: "Effects of Trust, Efficacy, and Education on Voter Turnout"
+author: "Maddi Hertz"
+date: "8/22/2020"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("/Users/MaddisMac/Dropbox/Data_Science_Fundamentals_601_SU2020")
+library(tidyverse)
+library(magrittr)
+library(janitor)
+```
+
+```{r, include=FALSE}
+anes <- read_delim("anes_cdf.txt", delim=",", trim_ws = TRUE, col_types = 
+                    "dcdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd")
+anes <- as_tibble(anes)
+anes_2016 <- read_delim("anes_2016.txt", delim=",", trim_ws = TRUE)
+anes_2016 <- as_tibble(anes_2016)
+```
+
+### Introduction
+
+Historically, the United States has always had a low voter turnout rate compared to other advanced democracies. In the 2016 election 61.4% of the citizen voting-age population (CVAP) cast a ballot.[^1] And despite the fact that turnout for the 2018 midterm election was the highest in over four decades, the CVAP voter turnout rate was only 53.4%.[^2] Rather than celebrating 53% turnout as a success just because it was a dramatic improvement from 2014's abysmal 42% turnout, I think it's important to research and analyze why turnout in the United States is so low to begin with.       
+
+G. Bingham Powell's 1986 article "American Voter Voter Turnout in Comparative Perspective" argues that America's two-party system and restrictive voting laws are the primary factors inhibiting turnout.[^3] He finds that individual level factors---education, party identification, political interest, political efficacy---actually predict that the United States should have a _higher_ turnout rate than the European countries in his sample. These individual level factors all have significant positive effects on turnout. In 1986, the US had marginally higher levels of education, party identification, interest, and efficacy than the respective averages of the European countries in his sample. But more than 30 years later, turnout in US elections has not measurably improved and still significantly lags that of other advanced democracies. While I agree that the American party system and voting laws continue to suppress turnout, I think it is worth revisiting these individual level factors---education, trust, strength of partisanship, political efficacy---to better understand why Americans may or may not be turning out to the polls.
+
+In this project I analyze political trust, efficacy, and education as factors that influence voter turnout. My hypothesis is that these variables will have a positive effect on turnout. I expect voters who trust Washington and/or those who have more education will be more likely to vote. But my interest in this subject stems from my  belief that low voter turnout is a problem for American democracy. This project explores which groups of Americans are unlikely to vote as the first step in eventually understanding why they don't vote and what policies might effectively increase turnout.    
+
+
+### Data
+
+For this project I use data from the American National Election Studies (ANES) Time Series Survey, a comprehensive survey of American public opinion and voting behavior, conducted during every presidential cycle and most midterms years since 1952.[^4] In order to better understand the relationship between trust and turnout today, I also use data from the full 2016 ANES survey.[^5] The ANES is an academic survey and one of the most commonly used data sources for researchers studying American political behavior. The ANES asks a number of questions on what they categorize as "system support". System support questions measure social trust and personal efficacy and also assess respondents' attitudes towards government in general, parties, and elected officials. I focus on three questions about trust and efficacy that have been included in the ANES Time Series STudy consistently over the years.
+
+In the following tables and visualizations, I have chosen to exclude missing values. Values may be missing for a variety of reasons including that the respondent did not complete the survey, skipped the question, the question was not included in the survey during a particular year, or the question was not applicable to the respondent. Particularly for this topic---(dis)trust and voter turnout---the data may not provide a complete picture. I expect that there is some level of non-response bias; the type of people I am most interested---those with less education and low political knowledge---are the least likely to complete surveys and may be under-represented in the samples. It is also well-documented that respondents lie on surveys and will claim to have voted when they did not (social desirability bias). In a more formal or comprehensive research project, I would use ANES weights to properly weight the sample and ANES "vote validation" to verify that respondents were truthfully registered and voted in order to correct for these biases. 
+
+```{r, include = FALSE}
+anes<-anes%>%
+  mutate(year = VCF0004) %>%
+  mutate(presYear = if_else(year %% 4 == 0, 1, 0)) %>%
+  mutate(year_factor = as_factor(year),
+         race = recode(VCF0105B, `1` = "White", `2` = "Black", `3` = "Hispanic",
+                       `4` = "Other"),
+         partyID_7p = recode_factor(VCF0301, `1` = "Strong Democrat",
+                                    `2` = "Weak Democrat", `3` = "Lean Democrat",
+                                    `4` = "Independent", `5` = "Lean Republican",
+                                    `6` = "Weak Republican", `7` = "Strong Republican"),
+         partyID_Lean = recode_factor(VCF0301, `1` = "Democrat", `2` = "Democrat",
+                                      `3` = "Democrat", `4` = "Independent", 
+                                      `5` = "Republican", `6` = "Republican",
+                                      `7` = "Republican"),
+         partyID_Unlean = recode_factor(VCF0301, `1` = "Democrat", `2` = "Democrat",
+                                        `3` = "Independent", `4` = "Independent", 
+                                        `5` = "Independent", `6` = "Republican",
+                                        `7` = "Republican"),
+         partisan = recode_factor(VCF0305, `1` = "Independent", `2` = "Lean",
+                                  `3` = "Weak", `4` = "Strong"),
+         voteParty = recode_factor(VCF0706, `1` = "Democrat", `2` = "Republican",
+                               `3` = "Major 3rd", `4` = "Other", `7` = "Did not vote"),
+         didVote = case_when(
+           VCF0706 %in% 1:4 ~ "voted",
+           VCF0706 == 7 ~ "did not vote"),
+         educ = case_when(
+           VCF0140A %in% 1:2 ~ "Less than High School",
+           VCF0140A %in% 3:4 ~ "High School or equiv.",
+           VCF0140A == 5 ~ "Some College",
+           VCF0140A == 6 ~ "College",
+           VCF0140A == 7 ~ "Grad or Prof Degree"))
+
+edLevels <- c("Less than High School", "High School or equiv.",
+              "Some College", "College", "Grad or Prof Degree")
+
+anes$educ <- factor(anes$educ, levels = edLevels, labels = edLevels)
+anes$turnout <- factor(anes$didVote, levels = c("did not vote", "voted"))
+```
+
+#### Political Trust
+
+I look most closely at the ANES question on trust. ANES asks irrespective of current party control:
+
+_How much of the time do you think you can trust the government in Washington to do what is right? (1958-2012)_
+
+``` {r, echo = FALSE, warning = FALSE}
+anes<-anes%>%
+  mutate(trustWash = recode_factor(VCF0604, `1` = "Never",
+                                   `2` = "Some of the time", `3` = "Most of the time",
+                                   `4` = "Just about always"))
+anes%>%
+  tabyl(trustWash, show_na = FALSE)%>%
+  adorn_pct_formatting()
+```  
+
+The vast majority of respondents say they trust government "some" or "most" of the time. These responses are closely linked; when one goes up the other declines by a nearly corresponding amount. The responses "never" (which must be volunteer by the respondent) and "just about always" have remained low and stable over the years. Plotting the percentage of each response over the past half century's elections provides a clear visualization of these trends. 
+
+```{r, echo = FALSE}
+trustTable <- tabyl(anes, year, trustWash, show_na = FALSE)%>%
+  adorn_percentages()
+
+trustTable <- trustTable%>%
+  mutate(presYear = ifelse(year %% 4 == 0, 1, 0))%>%
+  rename(never = "Never", most = "Most of the time", some = "Some of the time",
+         always = "Just about always")
+
+trustTable %>%
+  filter (presYear == 1) %>%
+  filter (year >= 1960) %>%
+  select(year, never, some, most, always) %>%
+  gather(key = "trustLevel", value = "trustPercent", -year) %>%
+  ggplot(aes(x=year, y=trustPercent))+
+  geom_line(aes(color = trustLevel)) +
+  geom_point(aes(color = trustLevel)) +
+  theme_bw() +
+  scale_x_continuous(breaks = seq(1964,2016, 8)) +
+  labs(title = "Trust Federal Government to Do What Is Right",
+       subtitle = "(1964-2012)",
+       x = "Year", 
+       y = "Percentage of Respondents",
+       caption = "Source: ANES Cumulative Data File (1948-2016)") +
+  scale_color_discrete(limits = c("always", "most", "some", "never"),
+                       labels = c("Just about always", "Most of the time",
+                                  "Some of the time", "Never (volunteered)")) +
+  theme(legend.text = element_text(size = 8)) +
+  theme(legend.title = element_blank()) +
+  theme(plot.caption = element_text(hjust =.5))
+```
+
+
+#### Poltical Efficacy
+
+There are many questions that come together to assess political efficacy, but whether or not respondents agree that public officials care what they think is a fundamental component of efficacy. The ANES asks respondents whether they agree with the following statement:
+
+_I don't think that public officials care much what people like me think. (1952-2016)_
+
+
+``` {r, echo = FALSE, warning = FALSE}
+anes<-anes%>%
+  mutate(careWhatIThink = recode_factor(VCF0609, `1` = "Agree", `2` = "Disagree", 
+                            `3` = "Neither agree nor disagree"))
+anes%>%
+  tabyl(careWhatIThink, show_na = FALSE)%>%
+  adorn_pct_formatting
+```  
+
+Since this question uses the phrase "people like me" I thought it would be worthwhile to visualize how responses breakdown across typical demographic categories. There was not much difference in responses by race; there were however significant difference when plotting by level of education. We know that turnout is positively correlated with education. This plot illustrates that political efficacy is likewise associated with education. The covariance of education and efficacy tells us that political efficacy--- represented here by the respondent's belief that elected officials care what they think---must also be positively correlated with turnout. This plot only includes data from presidential election years since 2000. I chose to only plot recent elections since the educational attainment of the electorate has changed so dramatically since the ANES began in fielding this question in 1952.
+
+```{r, echo=FALSE}
+anes%>%
+  filter(! is.na(careWhatIThink))%>%
+  filter(! is.na(educ))%>%
+  filter(year>=2000)%>%
+  filter(presYear == 1)%>%
+  ggplot(aes(educ, fill = careWhatIThink)) +
+  geom_bar(position = "dodge")+
+  theme_bw()+
+  labs(title = "Agree with Statement: \nElected Officals Don't Care Much What People Like Me Think",
+       subtitle = "Presidential Years (2000-2016)",
+       x= "Level of Education",
+       y= "Number of Respondents",
+       caption = "Source: ANES Cumulative Data File (1948-2016)")+
+  scale_fill_discrete(labels = c("Don't care much (Agree)", "Do care (Disagree)",
+                                 "Neither agree nor disagree"))+
+  theme(legend.text = element_text(size = 8)) +
+  theme(legend.title = element_blank()) +
+  theme(axis.text.x = element_text(size = 8, angle = 30, vjust = 1, hjust = 1))+
+  theme(plot.caption = element_text(hjust =.5))
+```
+
+
+#### Political Complexity
+
+ANES also asks respondents whether they agree or disagree that politics is too complicated, another component of political efficacy.
+
+_Sometimes politics and government seem so complicated that a person like me can't really understand what's going on. (1952-2012)_
+
+
+``` {r, echo = FALSE, warning = FALSE}
+anes<-anes%>%
+  mutate(complicated = recode_factor(VCF0614, `1` = "Agree", `2` = "Disagree", 
+                            `3` = "Neither agree nor disagree"))
+anes%>%
+  tabyl(complicated, show_na = FALSE)%>%
+  adorn_pct_formatting()
+```  
+
+I can use a chi squared test to evaluate the relationship between two categorical variables. A chi squared test determines whether there is a statistically significant difference between the expected frequencies under the null and the observed frequencies. Here the null hypothesis is that people who think that government is too complicated to understand and those who disagree with that statement will turnout to vote at equal rates. The alternative hypothesis is that the groups vote at different rates. I am able to reject the null and adopt the alternative hypothesis at the a=0.05 significance level if the p-value is less than 0.05. Executing the chi squared test and examining the residuals shows that `complicated` is highly significant. People who think politics is complicated are much more likely to not vote, and people who disagree are significantly more likely to cast a vote.
+
+``` {r, echo=FALSE}
+anes%>%
+  tabyl(complicated, didVote, show_na = FALSE)%>%
+  adorn_percentages("row")%>%
+  adorn_pct_formatting()
+
+compTable <- tabyl(anes, complicated, didVote, show_na = FALSE)
+chisq.test(compTable)
+chisq.test(compTable)$residuals
+```
+
+
+### Visualization
+
+```{r, include=FALSE}
+# recode necessary 2016 variables
+
+anes_2016<-anes_2016%>%
+  mutate(trustWash = recode_factor(v161215, `1` = "Always", `2` = "Most of the time",
+                                   `3` = "About half the time", `4` = "Some of the time",
+                                   `5` = "Never"),
+        educ = case_when(
+          v161270 %in% 1:9 ~ "No College",
+          v161270 %in% 10:12 ~ "Some College", 
+          v161270 %in% 13 ~ "College",
+          v161270 %in% 14:16 ~ "Advanced Degree"),
+        turnout = case_when(
+          v162031x == 0 ~ "Did not vote",
+          v162034 == 2 ~ "Did not vote",
+          v162034 == 1 ~ "Voted"),
+        vote2016 = recode_factor(v162034a, `1` = "Clinton", `2` = "Trump",
+                                   `3` = "Johnson", `4` = "Stein"))%>%
+  mutate(vote16NA = case_when(
+    v162034a == 1 ~ "Clinton",
+    v162034a == 2 ~ "Trump",
+    v162034a %in% 3:9 ~ "Other",
+    turnout == "Did not vote" ~ "Did not vote"))
+
+        
+edLevels16 <- c("No College", "Some College", "College", "Advanced Degree")
+vote16Levels <- c("Clinton", "Trump", "Other", "Did not vote")
+
+anes_2016$educ <- factor(anes_2016$educ, levels = edLevels16, labels = edLevels16)
+anes_2016$turnout <- factor(anes_2016$turnout, levels = c("did not vote", "voted"))
+anes_2016$vote16NA <- factor(anes_2016$vote16NA, levels = vote16Levels, labels = vote16Levels)
+```
+
+It was hard for me to decide what kind of visualization to use. With so many binary and categorical variables but very few numeric responses, I was limited in which types of visualizations I could try. Ideally, I would have liked to combine responses from multiple ANES "system support" questions into a political efficacy index which I could  visualize or use in a regression. But it didn't make sense for me to arbitrarily add a bunch of variables together and then use a methodologically unsound, untested index. That said, I hope to learn how indices of racial resentment, political knowledge, political efficacy, etc. are constructed and evaluated so that I am able to do something more complex in the future. 
+
+I wanted to be able to convey as much information from as many variables as possible without the visualization looking crowded or confusing. For this visualization I decided to switch to the `anes_2016` dataset. While making my "Trust Washington" plot above, I realized that the 2016 version of the question was not comparable to the question asked from 1964-2012. The original question included the responses "just able always, most of the time, or only some of the time". Some respondents volunteered none or never. In 2016, the question was given on five point scale with options "always, most of the time, about half of the time, some of the time, and never". Though I'm disappointed that the question isn't comparable, the five point question is more interesting to visualize. And notably, the percentage of "never" responses is considerably more. 
+
+I seriously considered doing a heat map of trust and level of education. Ultimately, I decided against this and opted for a faceted bar chart because I wanted to include a third variable---turnout---in the visualization as well. I filled the bars with the turnout variable to show which combinations of trust and education were more or less likely to vote. This construction directly addresses my research question by visualizing the effect that trust and education have on turnout. 
+
+```{r, eval=FALSE, include=FALSE}
+anes_2016%>%
+  filter(! is.na(educ))%>%
+  filter(! is.na(trustWash))%>%
+  filter(! is.na(turnout))%>%
+  ggplot(aes(trustWash, fill = turnout))+
+    geom_bar()+
+    facet_wrap(~ educ, ncol = 2) +
+  labs(title = "Level of Trust in Washington by Education in 2016",
+       x = "Trust in Washington", y = "Number of Respondents",
+       fill = "Voter Turnout",
+       caption = "Source: ANES Cumulative Data File (1948-2016)")+
+  theme_minimal()+
+  theme(legend.text = element_text(size = 8)) +
+  theme(axis.text.x = element_text(size = 8, angle = 30, vjust = 1, hjust = 1))+
+  theme(plot.caption = element_text(hjust =.5))+
+  theme(plot.title = element_text(hjust =.5))
+```
+
+The plot does effectively show the distribution of trust responses for each level of education. But overall this plot is disappointing because filling the bars with `turnout` did not add much to the visualization. This plot is designed to explore which combinations of trust and education are more or less likely to vote, but it does not effectively demonstrate the relationship between trust and turnout that I intended it to. My decided to fix the scale of the y axis rather than allowing it float to better fit the data within each facet of education gives interpretive meaning to the height of the bars; for instance you can easily tell that more respondents have some college than have advanced degrees. But in order to better analyze turnout, I should have made a percent stacked bar chart, where all the bars have equal height to visualize the __proportion__ of people who turned out within each trust and education level pairing.
+
+But the biggest problem with this plot is the data are not very good. The turnout rate in these data is 86.7%! This is completely out of line with the actual 63% turnout rate for this election. This is likely caused by a combination of the problems I mentioned earlier: non-response bias in the sample, unweighted data, and the fact that people often lie and claim to have voted when they did not. After I realized this sample was so unrepresentative of the voting behavior of all American adults, I looked for ANES vote validation but could not find it for the 2016 sample. 
+
+
+### Reflection
+
+As I've worked with these data for the past couple weeks, I have repeatedly considered modeling turnout on trust, efficacy, and education. Since turnout is binary, this would have been a logistic regression. I didn't follow through for a few reasons. While I understand the intuition of a logit model and have plenty of experience with linear regression, I've never studied logit models with any sort of depth. I wasn't sure that I could correctly interpret the output and analyze the residuals, so I was hesitant to include it. However I did spend some time trying to put together a turnout model. Unfortunately, I just kept getting errors---ones that didn't make much sense and indicated I wasn't on right track. Depending on how I tweaked the code the model either failed to compute entirely or warned me that it fit probabilities of 0 or 1, which are not valid. This didn't make sense given that my previous tests and visualizations demonstrate that there is a relationship between turnout, trust, and education. Since I was already hesitant to include it and had limited time, I decided to move on to other visualizations rather than continue debugging. 
+
+That decision to go in a different direction when my code wasn't working came at the end of the week after I had experienced multiple debugging headaches. Overall, my most important takeaways from this course are (1) that problems are always going to come up, and (2) that when they do sometimes it makes sense to go in a different direction or walk away and come back later with fresh eyes. I also realized that R will become easier and easier as I get more familiar with it and discover packages that are designed to solve the problems that I'm running into. 
+
+The most time consuming visualization that I worked on for this course was the trend of trust over time. First I had calculate proportion of respondents for each level of trust and save that table as new data frame. When I did it initially, I used `prop.table()`, but `prop.table()` is difficult to work with because it erases the metadata from the original data frame. `tabyl()` from the `janitor` package resolves this problem and produces a data frame with the same dimensions, labels, and variable types as the `tabyl()` itself. When I used `prop.table()` it took me hours to tidy and the new data frame and get the data in the format I needed for `ggplot`. That struggle and subsequent realization that _it could have been so much easier_ was actually reassuring for me. It helped me recognize that there is a learning curve with R---perhaps a steep learning curve---but that once I'm familiar with the program and really know what its capable of, things will go a lot more smoothly.  
+
+The other thing that I struggled with in R throughout this course was importing my data into R and getting it to load correctly. Prior to this course, I assumed the tidying process was only about manipulating data into a workable rectangular shape and labeling variables which takes place after the data are already in the R environment. But I learned that not only can importing data be just as difficult, but that it is the essential first step in the tidy data process. I got tripped up twice, first importing the `anes_2016` data and then the ANES cumulative file, because R imported many variables imported as the wrong variable type. A vector's `class()` restricts what kinds of operations can be preformed on it; therefore having data that is the wrong class can be a serious problem. Sometimes you can just use functions like `as.numeric()`, `factor()`, or `unclass()` to change the class to the type you want, but I needed other solutions to fix my import problems. Both datasets were composed almost entirely of double vectors but the 2016 file imported as mostly character vectors and the cumulative file as mostly logical vectors. Wickham and Grolemund's _R for Data Science_ is an invaluable resource. Their chapter on data import explained that R has parsing problems if the first 1000 rows have missing data which was my problem with the ANES cumulative file.[^7] In both cases, I only realized something was wrong because the tidying and renaming that I was attempting to do, wasn't working the way it should have been. In part, I didn't notice because I couldn't understand what the big blocks of red warning text were trying to tell me. I looked at them, but the text was meaningless to me at the time. Ignoring these warnings just caused problems later on. Consequently, another major improvement I've made as I've adjusted to R in just the past few weeks, is that I now know the importance of reading and understanding those warning and error messages. At this point I'm better able to intuit what many of them mean on my own, but when I don't know, I know enough to google it.   
+
+
+### Conclusion
+
+This project was as much about gaining familiarity with R as it was about answering my chosen research question. But another skill for data scientist is to be able to identify what kind of questions the data are able to answer. I enjoyed working with the ANES, but even though it asks a lot of questions about political efficacy, if I were to continue to research this topic I would look for other surveys that more narrowly to this topic. I repeatedly felt like the turnout variable that I was interested in studying wasn't representative of my population of interest. Despite that, this research shows that trust in government, political efficacy, and education are are positively correlated with turnout, even though I wasn't able use a regression model which has the most influence. 
+
+One supplementary data source I could use to extend this research is the "Voting and Registration Supplement" included in the Current Population Survey (CPS). The CPS is a monthly survey conducted by jointly by the Census Bureau (CB) and Bureau of Labor Statistics (BLS). The voter supplement is added to the November survey in years with a federal election. It is used to calculate official turnout statistics which is the reason I found it while writing this introduction. It asks respondents if they are registered to vote, their method of registering, whether they voted, their method of voting, if they voted on or before election day, and importantly, if applicable, _why_ they did not register or cast a ballot. The most common responses include too busy, not interested, disability/illness,  inconvenient, and registration problems.[^6] There aren't any political questions on the CPS so I would not be able to analyze ideology. But the CPS includes detailed demographic data; therefore I could do an in-depth comparison of the race, education, and income of voters and non-voters.
+
+
+***
+[^1]: File, T. (2017, May 10). _Voting in America: a look at the 2016 presidential election._ United States Census Bureau. https://www.census.gov/newsroom/blogs/random-samplings/2017/05/voting_in_america.html
+[^2]: Misra, J. (2019, April 23). _Voter turnout rates among all voting age and major racial and ethnic groups were higher than in 2014._ United States Census Bureau.  https://www.census.gov/library/stories/2019/04/behind-2018-united-states-midterm-election-turnout.html
+[^3]: Powell, G. B. (1986). American voter turnout in comparative perspective. _The American Political Science Review_, 80(1), 17-43. doi:10.2307/1957082
+[^4]: The American National Election Studies (2019) _The ANES time series cumulative data file_ (Version SDA 4). The University of Michigan and Stanford University with grants from the National Science Foundation [Data file and code book]. https://sda.berkeley.edu/sdaweb/analysis/?dataset=nes2016c
+[^5]: The American National Election Studies (2017). _The ANES 2016 time series study_ (Version SDA 4)  The University of Michigan and Stanford University with grants from the National Science Foundation [Data file and code book]. https://sda.berkeley.edu/sdaweb/analysis/?dataset=nes2016
+[^6]: Flood, S., King, M., Rodgers, R., Ruggles, S., & Warren, J. R. (2020). _Integrated Public Use Microdata Series, Current Population Survey_ (Version 7.0) University of Minnesota. [Data file and code book]. https://doi.org/10.18128/D030.V7.0
+[^7]: Wickham, H. & Grolemund, G. (2016). _R for Data Science._ [eBook edition]. O'Reilly Media, Inc. https://r4ds.had.co.nz/ 
